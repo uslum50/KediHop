@@ -1,6 +1,6 @@
 {
   "name": "KediHop",
-  "short_name": "Kedicik",
+  "short_name": "KediHop",
   "description": "Kedicik ile engelleri aş, süper güçleri topla, bitiş çizgisine ulaş!",
   "start_url": "./index.html",
   "scope": "./",
