@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Zıplayan Kedicik</title>
+<meta name="theme-color" content="#FF8A3D">
+<meta name="description" content="Kedicik ile engelleri aş, süper güçleri topla, bitiş çizgisine ulaş!">
+
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Üst bilgi çubuğu -->
+  <div id="hud">
+    <div id="hudLevel">Bölüm 1</div>
+    <div id="hudPower" class="hidden">🔥 <span id="powerTimerText">15</span> sn</div>
+  </div>
+
+  <!-- Dokunmatik kontroller -->
+  <div id="controls">
+    <button id="btnMove" class="ctrlBtn" aria-label="İleri Git">
+      <span class="ctrlIcon">▶</span>
+      <span class="ctrlLabel">İLERİ</span>
+    </button>
+    <button id="btnJump" class="ctrlBtn" aria-label="Zıpla">
+      <span class="ctrlIcon">⤴</span>
+      <span class="ctrlLabel">ZIPLA</span>
+    </button>
+  </div>
+
+  <!-- Başlangıç menüsü -->
+  <div id="menuOverlay" class="overlay">
+    <div class="panel">
+      <h1>🐱 Zıplayan Kedicik</h1>
+      <p class="subtitle">Engelleri aş, ateş gücünü topla, bitiş çizgisine koş!</p>
+      <button id="btnContinue" class="bigBtn">Devam Et — Bölüm <span id="continueLevelNum">1</span></button>
+      <button id="btnLevelSelect" class="bigBtn secondary">Bölüm Seç</button>
+      <button id="btnHowTo" class="bigBtn secondary">Nasıl Oynanır?</button>
+    </div>
+  </div>
+
+  <!-- Bölüm seçim ekranı -->
+  <div id="levelSelectOverlay" class="overlay hidden">
+    <div class="panel">
+      <h2>Bölüm Seç</h2>
+      <div id="levelGrid"></div>
+      <button id="btnBackFromSelect" class="bigBtn secondary">Geri</button>
+    </div>
+  </div>
+
+  <!-- Nasıl oynanır -->
+  <div id="howToOverlay" class="overlay hidden">
+    <div class="panel">
+      <h2>Nasıl Oynanır?</h2>
+      <ul class="howToList">
+        <li>▶ İLERİ butonuna bas: kedicik koşmaya devam eder.</li>
+        <li>⤴ ZIPLA butonuna bas: kedicik zıplar, engelleri aşar.</li>
+        <li>❓ işaretli kutulara dokun: içinden ateş çıkar.</li>
+        <li>🔥 Ateşi topla: kedicik 15 saniyeliğine kırmızıya döner ve engellere çarpsa bile yanmaz!</li>
+        <li>🏁 Bitiş çizgisine ulaş: bölüm biter, sıradaki bölüm açılır.</li>
+        <li>Bir engele takılırsan "Tekrar Dene" ile aynı bölümü yeniden oynarsın.</li>
+      </ul>
+      <button id="btnBackFromHowTo" class="bigBtn secondary">Geri</button>
+    </div>
+  </div>
+
+  <!-- Bölüm tamamlandı -->
+  <div id="levelCompleteOverlay" class="overlay hidden">
+    <div class="panel">
+      <h2>🎉 Bölüm Tamamlandı!</h2>
+      <p id="levelCompleteText" class="subtitle">Bölüm 1 bitti.</p>
+      <button id="btnNextLevel" class="bigBtn">Sonraki Bölüme Geç</button>
+    </div>
+  </div>
+
+  <!-- Yandı / öldü -->
+  <div id="gameOverOverlay" class="overlay hidden">
+    <div class="panel">
+      <h2>💥 Yandın!</h2>
+      <p class="subtitle">Engele takıldın. Tekrar dene!</p>
+      <button id="btnRetry" class="bigBtn">Tekrar Dene</button>
+      <button id="btnRetryMenu" class="bigBtn secondary">Ana Menü</button>
+    </div>
+  </div>
+
+  <!-- Oyun tamamlandı -->
+  <div id="gameCompleteOverlay" class="overlay hidden">
+    <div class="panel">
+      <h2>🏆 Tebrikler!</h2>
+      <p class="subtitle">Kedicik tüm 10 bölümü tamamladı!</p>
+      <button id="btnPlayAgain" class="bigBtn">Baştan Oyna</button>
+    </div>
+  </div>
+
+  <!-- Duraklat butonu -->
+  <button id="btnPause" class="hidden" aria-label="Duraklat">⏸</button>
+  <div id="pauseOverlay" class="overlay hidden">
+    <div class="panel">
+      <h2>Duraklatıldı</h2>
+      <button id="btnResume" class="bigBtn">Devam Et</button>
+      <button id="btnPauseMenu" class="bigBtn secondary">Ana Menü</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
