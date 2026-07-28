@@ -24,10 +24,12 @@
   let W = 0, H = 0, groundY = 0;
 
   function resize() {
-    W = canvas.clientWidth = window.innerWidth;
-    H = canvas.clientHeight = window.innerHeight;
+    W = window.innerWidth;
+    H = window.innerHeight;
     canvas.width = W;
     canvas.height = H;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
     groundY = H - GROUND_HEIGHT;
   }
   window.addEventListener("resize", resize);
