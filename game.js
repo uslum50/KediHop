@@ -56,7 +56,7 @@
   };
   let screen = Screens.MENU;
 
-  let input = { moveHeld: false, jumpPressed: false };
+  let input = { moveHeld: false, backHeld: false, jumpPressed: false };
 
   let level = null;      // aktif bölüm verisi
   let player = null;     // aktif kedicik verisi
@@ -89,9 +89,9 @@
       x += gap;
       if (x > length - 500) break;
 
-      const kind = rng() < 0.65 ? "spike" : "block";
-      const w = kind === "spike" ? 36 + rng() * 18 : 46 + rng() * 30;
-      const h = kind === "spike" ? 46 + rng() * 20 : 44 + rng() * 34;
+      const kind = rng() < 0.72 ? "spike" : "flame";
+      const w = kind === "spike" ? 36 + rng() * 18 : 22 + rng() * 12;
+      const h = kind === "spike" ? 46 + rng() * 20 : 26 + rng() * 14;
       obstacles.push({ x, w, h, kind, destroyed: false });
     }
 
@@ -103,8 +103,8 @@
       boxes.push({
         x: bx, y: groundY - 190, size: 46,
         used: false,
-        fireSpawned: false, fireTaken: false,
-        fireX: bx + 23, fireY: groundY - 190, fireVy: 0, fireArmed: false
+        fireSpawned: false, fireTaken: false, fireGrounded: false,
+        fireX: bx + 23, fireY: groundY - 190, fireVy: 0
       });
     }
 
@@ -160,6 +160,7 @@
 
   // ---------- Girdi (dokunmatik / mouse) ----------
   const btnMove = document.getElementById("btnMove");
+  const btnBack = document.getElementById("btnBack");
   const btnJump = document.getElementById("btnJump");
 
   function bindHold(el, onDown, onUp) {
@@ -173,6 +174,7 @@
   }
 
   bindHold(btnMove, () => { input.moveHeld = true; }, () => { input.moveHeld = false; });
+  bindHold(btnBack, () => { input.backHeld = true; }, () => { input.backHeld = false; });
   bindHold(btnJump, () => { input.jumpPressed = true; }, () => {});
 
   // ---------- Fizik / güncelleme ----------
@@ -185,11 +187,16 @@
     elapsedInLevel += dt;
 
     // --- Yatay hareket ---
-    if (input.moveHeld) {
+    if (input.backHeld) {
+      player.vx = -MOVE_SPEED;
+      player.facing = -1;
+    } else if (input.moveHeld) {
       player.vx = MOVE_SPEED;
       player.facing = 1;
-    } else {
+    } else if (player.vx > 0) {
       player.vx = Math.max(0, player.vx - FRICTION_DECEL * dt);
+    } else if (player.vx < 0) {
+      player.vx = Math.min(0, player.vx + FRICTION_DECEL * dt);
     }
 
     // --- Zıplama ---
@@ -217,7 +224,7 @@
     if (player.x > level.length) player.x = level.length;
 
     // koşu animasyon fazı
-    if (player.vx > 5) player.runPhase += dt * 10;
+    if (Math.abs(player.vx) > 5) player.runPhase += dt * 10;
     player.squash += (1 - player.squash) * Math.min(1, dt * 8);
 
     // --- Güç süresi ---
@@ -237,20 +244,25 @@
         if (rectsOverlap(player.x, player.y, player.w, player.h, box.x, box.y, box.size, box.size)) {
           box.used = true;
           box.fireSpawned = true;
-          box.fireArmed = true;
-          box.fireY = box.y - 10;
-          box.fireVy = -260;
+          box.fireX = box.x + box.size / 2;
+          box.fireY = box.y;
+          box.fireVy = 0;
+          box.fireGrounded = false;
         }
       }
       if (box.fireSpawned && !box.fireTaken) {
-        // ateş kutunun üstünden hafifçe zıplayıp süzülür
-        box.fireVy += 500 * dt;
-        box.fireY += box.fireVy * dt;
-        const floatY = box.y - 60;
-        if (box.fireY < floatY) { box.fireY = floatY; box.fireVy = 0; }
-        if (box.fireY > box.y - 40 && box.fireVy > 0) box.fireVy = -120; // hafif sekme
-
         const fw = 30, fh = 34;
+        const groundLevel = groundY - fh;
+        if (!box.fireGrounded) {
+          // ateş yerçekimiyle yere düşer
+          box.fireVy += GRAVITY * 0.6 * dt;
+          box.fireY += box.fireVy * dt;
+          if (box.fireY >= groundLevel) {
+            box.fireY = groundLevel;
+            box.fireVy = 0;
+            box.fireGrounded = true;
+          }
+        }
         if (rectsOverlap(player.x, player.y, player.w, player.h, box.fireX - fw / 2, box.fireY, fw, fh)) {
           box.fireTaken = true;
           player.powered = true;
@@ -368,20 +380,33 @@
       ctx.strokeStyle = "#5B5B66";
       ctx.lineWidth = 2;
       ctx.stroke();
-    } else {
-      ctx.fillStyle = "#C97B3D";
-      roundRect(obs.x, oy, obs.w, obs.h, 6);
-      ctx.fill();
-      ctx.strokeStyle = "#8C5426";
-      ctx.lineWidth = 3;
-      roundRect(obs.x, oy, obs.w, obs.h, 6);
-      ctx.stroke();
-      ctx.strokeStyle = "#8C5426aa";
-      ctx.beginPath();
-      ctx.moveTo(obs.x, oy); ctx.lineTo(obs.x + obs.w, oy + obs.h);
-      ctx.moveTo(obs.x + obs.w, oy); ctx.lineTo(obs.x, oy + obs.h);
-      ctx.stroke();
+    } else if (obs.kind === "flame") {
+      drawObstacleFlame(obs.x, obs.w, obs.h);
     }
+  }
+
+  function drawObstacleFlame(obsX, obsW, obsH) {
+    const cx = obsX + obsW / 2;
+    const baseY = groundY;
+    const flicker = 1 + Math.sin(elapsedInLevel * 9 + obsX) * 0.1;
+    const h = obsH * flicker;
+    const w = obsW;
+    ctx.save();
+    const grad = ctx.createRadialGradient(cx, baseY - h * 0.5, 2, cx, baseY - h * 0.4, h * 0.7);
+    grad.addColorStop(0, "#FFE27A");
+    grad.addColorStop(0.5, "#FF8A3D");
+    grad.addColorStop(1, "#FF4D4D");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.32, baseY);
+    ctx.quadraticCurveTo(cx - w * 0.5, baseY - h * 0.5, cx - w * 0.12, baseY - h * 0.85);
+    ctx.quadraticCurveTo(cx - w * 0.02, baseY - h * 0.6, cx + w * 0.14, baseY - h * 0.78);
+    ctx.quadraticCurveTo(cx + w * 0.06, baseY - h, cx + w * 0.32, baseY - h * 0.88);
+    ctx.quadraticCurveTo(cx + w * 0.55, baseY - h * 0.55, cx + w * 0.2, baseY - h * 0.25);
+    ctx.quadraticCurveTo(cx + w * 0.4, baseY - h * 0.3, cx + w * 0.32, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   function roundRect(x, y, w, h, r) {
