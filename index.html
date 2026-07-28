@@ -25,10 +25,16 @@
 
   <!-- Dokunmatik kontroller -->
   <div id="controls">
-    <button id="btnMove" class="ctrlBtn" aria-label="İleri Git">
-      <span class="ctrlIcon">▶</span>
-      <span class="ctrlLabel">İLERİ</span>
-    </button>
+    <div id="leftControls">
+      <button id="btnBack" class="ctrlBtn ctrlBtnSmall" aria-label="Geri Git">
+        <span class="ctrlIcon">◀</span>
+        <span class="ctrlLabel">GERİ</span>
+      </button>
+      <button id="btnMove" class="ctrlBtn" aria-label="İleri Git">
+        <span class="ctrlIcon">▶</span>
+        <span class="ctrlLabel">İLERİ</span>
+      </button>
+    </div>
     <button id="btnJump" class="ctrlBtn" aria-label="Zıpla">
       <span class="ctrlIcon">⤴</span>
       <span class="ctrlLabel">ZIPLA</span>
@@ -61,8 +67,9 @@
       <h2>Nasıl Oynanır?</h2>
       <ul class="howToList">
         <li>▶ İLERİ butonuna bas: kedicik koşmaya devam eder.</li>
+        <li>◀ GERİ butonuna bas: kedicik döner ve geriye doğru gider.</li>
         <li>⤴ ZIPLA butonuna bas: kedicik zıplar, engelleri aşar.</li>
-        <li>❓ işaretli kutulara dokun: içinden ateş çıkar.</li>
+        <li>❓ işaretli kutulara dokun: içinden ateş çıkıp yere düşer.</li>
         <li>🔥 Ateşi topla: kedicik 15 saniyeliğine kırmızıya döner ve engellere çarpsa bile yanmaz!</li>
         <li>🏁 Bitiş çizgisine ulaş: bölüm biter, sıradaki bölüm açılır.</li>
         <li>Bir engele takılırsan "Tekrar Dene" ile aynı bölümü yeniden oynarsın.</li>
