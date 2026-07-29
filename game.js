@@ -15,6 +15,7 @@
   const FRICTION_DECEL = 900;    // buton bırakılınca yavaşlama
   const POWER_DURATION = 15;     // saniye
   const CAT_W = 46, CAT_H = 42;
+  const PLAYER_HIT_INSET = 9;    // görsel ile çarpışma kutusu arasındaki boşluk (px)
   const GROUND_HEIGHT = 90;
   const SAVE_KEY = "kedicikOyunu_v1";
 
@@ -175,11 +176,56 @@
 
   bindHold(btnMove, () => { input.moveHeld = true; }, () => { input.moveHeld = false; });
   bindHold(btnBack, () => { input.backHeld = true; }, () => { input.backHeld = false; });
-  bindHold(btnJump, () => { input.jumpPressed = true; }, () => {});
+  bindHold(btnJump, () => { input.jumpPressed = true; getAudioCtx(); }, () => {});
+
+  // ---------- Ses efektleri (dış dosya yok, doğrudan üretilir) ----------
+  let audioCtx = null;
+  function getAudioCtx() {
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      return audioCtx;
+    } catch (e) { return null; }
+  }
+  function playTone(freqStart, freqEnd, duration, type, volume) {
+    const ac = getAudioCtx();
+    if (!ac) return;
+    try {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freqStart, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), ac.currentTime + duration);
+      gain.gain.setValueAtTime(volume, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+      osc.connect(gain).connect(ac.destination);
+      osc.start();
+      osc.stop(ac.currentTime + duration);
+    } catch (e) {}
+  }
+  function playJumpSound() {
+    playTone(420, 780, 0.16, "square", 0.16);
+  }
+  function playHitSound() {
+    playTone(260, 50, 0.35, "sawtooth", 0.22);
+    setTimeout(() => playTone(160, 30, 0.25, "sawtooth", 0.16), 60);
+  }
 
   // ---------- Fizik / güncelleme ----------
   function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // Diken/alev görselleri sivri üçgen şeklinde olduğu için tam kare kutu yerine
+  // görsele daha yakın, içeri çekilmiş bir çarpışma alanı kullanıyoruz.
+  function obstacleHitbox(obs) {
+    const oy = groundY - obs.h;
+    const insetX = obs.w * (obs.kind === "spike" ? 0.26 : 0.22);
+    const insetTop = obs.h * (obs.kind === "spike" ? 0.32 : 0.2);
+    return { x: obs.x + insetX, y: oy + insetTop, w: obs.w - insetX * 2, h: obs.h - insetTop };
   }
 
   function update(dt) {
@@ -205,6 +251,7 @@
         player.vy = JUMP_VELOCITY;
         player.onGround = false;
         player.squash = 1.25;
+        playJumpSound();
       }
       input.jumpPressed = false;
     }
@@ -273,10 +320,14 @@
     }
 
     // --- Engeller ---
+    const hpx = player.x + PLAYER_HIT_INSET;
+    const hpy = player.y + PLAYER_HIT_INSET;
+    const hpw = player.w - PLAYER_HIT_INSET * 2;
+    const hph = player.h - PLAYER_HIT_INSET * 2;
     for (const obs of level.obstacles) {
       if (obs.destroyed) continue;
-      const oy = groundY - obs.h;
-      if (rectsOverlap(player.x, player.y, player.w, player.h, obs.x, oy, obs.w, obs.h)) {
+      const hb = obstacleHitbox(obs);
+      if (rectsOverlap(hpx, hpy, hpw, hph, hb.x, hb.y, hb.w, hb.h)) {
         if (player.powered) {
           obs.destroyed = true; // güçlü kedicik engeli dağıtır
         } else {
@@ -299,6 +350,7 @@
   }
 
   function triggerGameOver() {
+    playHitSound();
     screen = Screens.GAME_OVER;
     document.getElementById("gameOverOverlay").classList.remove("hidden");
     document.getElementById("btnPause").classList.add("hidden");
