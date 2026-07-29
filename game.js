@@ -8,7 +8,7 @@
   "use strict";
 
   // ---------- Sabitler ----------
-  const TOTAL_LEVELS = 10;
+  const TOTAL_LEVELS = 20;
   const GRAVITY = 1700;          // px/s^2
   const JUMP_VELOCITY = -680;    // px/s
   const MOVE_SPEED = 250;        // px/s (ileri butonuna basılıyken)
@@ -77,12 +77,12 @@
 
   function generateLevel(levelNum) {
     const rng = makeRng(levelNum * 7 + 13);
-    // Bölüm uzunluğu, yaklaşık 2 dakikalık oynanışa denk gelecek şekilde kademeli artar.
-    const length = 3600 + levelNum * 420;
+    // Bölüm uzunluğu ve zorluk 20 bölüm boyunca kademeli olarak artar.
+    const length = 3200 + levelNum * 300;
     const obstacles = [];
     const boxes = [];
 
-    const difficulty = 1 + levelNum * 0.12;
+    const difficulty = 1 + levelNum * 0.075;
     let x = 700; // ilk engelden önce boşluk
 
     while (x < length - 500) {
@@ -96,18 +96,14 @@
       obstacles.push({ x, w, h, kind, destroyed: false });
     }
 
-    // Soru işaretli kutular, engellerin arasına serpiştirilir.
-    let bx = 500;
-    while (bx < length - 400) {
-      bx += 900 + rng() * 700;
-      if (bx > length - 400) break;
-      boxes.push({
-        x: bx, y: groundY - 190, size: 46,
-        used: false,
-        fireSpawned: false, fireTaken: false, fireGrounded: false,
-        fireX: bx + 23, fireY: groundY - 190, fireVy: 0
-      });
-    }
+    // Soru işaretli kutu — her bölümde sadece 1 tane, yani süper güç bölüm başına 1 kez alınabilir.
+    const boxX = length * (0.38 + rng() * 0.28);
+    boxes.push({
+      x: boxX, y: groundY - 190, size: 46,
+      used: false,
+      fireSpawned: false, fireTaken: false, fireGrounded: false,
+      fireX: boxX + 23, fireY: groundY - 190, fireVy: 0
+    });
 
     return { num: levelNum, length, obstacles, boxes, finishX: length - 120 };
   }
