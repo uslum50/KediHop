@@ -13,7 +13,7 @@
   const JUMP_VELOCITY = -680;    // px/s
   const MOVE_SPEED = 250;        // px/s (ileri butonuna basılıyken)
   const FRICTION_DECEL = 900;    // buton bırakılınca yavaşlama
-  const POWER_DURATION = 10;     // saniye
+  const POWER_DURATION = 8;     // saniye
   const CAT_W = 46, CAT_H = 42;
   const PLAYER_HIT_INSET = 9;    // görsel ile çarpışma kutusu arasındaki boşluk (px)
   const GROUND_HEIGHT = 90;
