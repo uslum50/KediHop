@@ -39,6 +39,40 @@
   dragonImg.onload = () => { dragonImgLoaded = true; };
   dragonImg.src = "icons/dragon.png"; // dosya yolunu kendi klasör yapına göre değiştir
 
+  // ---------- İlerleme yüzdesi HUD'u (duraklat butonunun yanında) ----------
+  const hudProgress = document.createElement("div");
+  hudProgress.id = "hudProgress";
+  Object.assign(hudProgress.style, {
+    position: "fixed",
+    zIndex: "5",
+    color: "#fff",
+    fontWeight: "bold",
+    fontFamily: "'Baloo 2', sans-serif",
+    fontSize: "15px",
+    textShadow: "0 1px 3px rgba(0,0,0,0.6)",
+    background: "rgba(0,0,0,0.35)",
+    padding: "6px 10px",
+    borderRadius: "12px",
+    display: "none",
+    pointerEvents: "none"
+  });
+  hudProgress.textContent = "%0";
+  document.body.appendChild(hudProgress);
+
+  function updateProgressHUD() {
+    const btn = document.getElementById("btnPause");
+    if (!level || btn.classList.contains("hidden")) {
+      hudProgress.style.display = "none";
+      return;
+    }
+    const pct = Math.max(0, Math.min(100, Math.round((player.x / level.finishX) * 100)));
+    hudProgress.textContent = "%" + pct;
+    const r = btn.getBoundingClientRect();
+    hudProgress.style.display = "block";
+    hudProgress.style.top = r.top + (r.height - hudProgress.offsetHeight) / 2 + "px";
+    hudProgress.style.left = (r.left - hudProgress.offsetWidth - 8) + "px";
+  }
+
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
@@ -79,6 +113,8 @@
   let camX = 0;
   let lastTime = 0;
   let elapsedInLevel = 0;
+  let furthestX = 0;      // bu denemede ulaşılan en uzak x
+  let checkpointX = null; // bölümün %50'sinden sonra yanılırsa buradan devam edilir
 
   // ---------- Bölüm üretimi ----------
   // Deterministik basit PRNG (seed = bölüm numarası) — her denemede aynı bölüm.
@@ -169,10 +205,12 @@
     return { num: levelNum, length, obstacles, boxes, finishX: length - 120, dragon };
   }
 
-  function startLevel(levelNum) {
+  function startLevel(levelNum, resumeX) {
     level = generateLevel(levelNum);
+    const resuming = typeof resumeX === "number";
+    const startX = resuming ? Math.min(resumeX, level.finishX - 60) : 80;
     player = {
-      x: 80, y: groundY - CAT_H,
+      x: startX, y: groundY - CAT_H,
       vx: 0, vy: 0,
       w: CAT_W, h: CAT_H,
       onGround: true,
@@ -184,19 +222,22 @@
       runPhase: 0,
       squash: 1
     };
-    camX = 0;
+    camX = Math.max(0, startX - W * 0.35);
+    furthestX = startX;
+    if (!resuming) checkpointX = null; // taze başlangıçta kontrol noktası sıfırlanır
     elapsedInLevel = 0;
     save.currentLevel = levelNum;
     writeSave();
-    document.getElementById("hudLevel").textContent = "Bölüm " + levelNum;
+    document.getElementById("hudLevel").textContent = "Bölüm " + levelNum + "/" + TOTAL_LEVELS;
     setPowerHUD(false);
     screen = Screens.PLAYING;
     hideAllOverlays();
     document.getElementById("btnPause").classList.remove("hidden");
+    updateProgressHUD();
   }
 
   function retryLevel() {
-    startLevel(level.num);
+    startLevel(level.num, checkpointX !== null ? checkpointX : undefined);
   }
 
   function goToNextLevel() {
@@ -338,6 +379,7 @@
 
     if (player.x < 0) player.x = 0;
     if (player.x > level.length) player.x = level.length;
+    if (player.x > furthestX) furthestX = player.x;
 
     // koşu animasyon fazı
     if (Math.abs(player.vx) > 5) player.runPhase += dt * 10;
@@ -479,6 +521,12 @@
 
   function triggerGameOver() {
     playHitSound();
+    // bölümün yarısından fazlası geçildiyse, tekrar denemede oradan başlanır
+    if (furthestX >= level.finishX * 0.5) {
+      checkpointX = furthestX;
+    } else {
+      checkpointX = null;
+    }
     screen = Screens.GAME_OVER;
     document.getElementById("gameOverOverlay").classList.remove("hidden");
     document.getElementById("btnPause").classList.add("hidden");
@@ -938,6 +986,7 @@
     lastTime = t;
     if (screen === Screens.PLAYING) update(dt);
     draw();
+    updateProgressHUD();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
