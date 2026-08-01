@@ -33,6 +33,12 @@
   const ctx = canvas.getContext("2d");
   let W = 0, H = 0, groundY = 0;
 
+  // ---------- Ejderha görseli ----------
+  const dragonImg = new Image();
+  let dragonImgLoaded = false;
+  dragonImg.onload = () => { dragonImgLoaded = true; };
+  dragonImg.src = "icons/dragon.png"; // dosya yolunu kendi klasör yapına göre değiştir
+
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
@@ -769,85 +775,20 @@
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(cx, cy);
 
-    // kanatlar (koyu kırmızı)
-    const wingFlap = Math.sin(d.bobPhase * 8) * 18;
-    ctx.fillStyle = "#7A1F1F";
-    ctx.beginPath();
-    ctx.moveTo(-20, -10);
-    ctx.lineTo(-72, -42 - wingFlap);
-    ctx.lineTo(-30, 12);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(20, -10);
-    ctx.lineTo(72, -42 - wingFlap);
-    ctx.lineTo(30, 12);
-    ctx.closePath(); ctx.fill();
-    // kanat zarı çizgileri
-    ctx.strokeStyle = "#4E1414";
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-20, -10); ctx.lineTo(-58, -30 - wingFlap); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(20, -10); ctx.lineTo(58, -30 - wingFlap); ctx.stroke();
-
-    // kuyruk
-    ctx.strokeStyle = "#B22B2B";
-    ctx.lineWidth = 14;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(0, d.h / 2 - 14);
-    ctx.quadraticCurveTo(30, d.h / 2 + 10, 46, d.h / 2 - 6);
-    ctx.stroke();
-
-    // gövde (kırmızı)
-    ctx.fillStyle = "#C23B3B";
-    roundRect(-d.w / 2 + 20, -d.h / 2 + 20, d.w - 40, d.h - 40, 24);
-    ctx.fill();
-
-    // karın (açık turuncu)
-    ctx.fillStyle = "#F2A65A";
-    ctx.beginPath();
-    ctx.ellipse(0, d.h / 2 - 34, d.w / 2 - 34, 18, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // sırt dikenleri
-    ctx.fillStyle = "#7A1F1F";
-    for (let i = -1; i <= 1; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * 16 - 6, -d.h / 2 + 22);
-      ctx.lineTo(i * 16, -d.h / 2 + 4);
-      ctx.lineTo(i * 16 + 6, -d.h / 2 + 22);
-      ctx.closePath(); ctx.fill();
+    if (dragonImgLoaded) {
+      const breathe = Math.sin(d.bobPhase * 3) * 3; // hafif nefes alma hareketi
+      const dw = d.w * 2.35; // görsel, çarpışma kutusundan biraz büyük çizilir
+      const dh = dw * (dragonImg.height / dragonImg.width);
+      // görsel zaten sola bakıp sola ateş püskürtüyor — oyundaki yönle uyumlu, çevirmeye gerek yok
+      ctx.drawImage(dragonImg, cx - dw * 0.42, cy - dh / 2 + breathe, dw, dh);
+    } else {
+      // görsel henüz yüklenmediyse basit bir yedek şekil göster
+      ctx.translate(cx, cy);
+      ctx.fillStyle = "#C23B3B";
+      roundRect(-d.w / 2, -d.h / 2, d.w, d.h, 24);
+      ctx.fill();
     }
-
-    // kafa
-    ctx.fillStyle = "#D14A3D";
-    ctx.beginPath();
-    ctx.ellipse(0, -d.h / 2 + 6, 30, 24, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // boynuzlar
-    ctx.fillStyle = "#3B2A20";
-    ctx.beginPath();
-    ctx.moveTo(-14, -d.h / 2 - 10); ctx.lineTo(-8, -d.h / 2 + 12); ctx.lineTo(-20, -d.h / 2 + 6);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(14, -d.h / 2 - 10); ctx.lineTo(8, -d.h / 2 + 12); ctx.lineTo(20, -d.h / 2 + 6);
-    ctx.closePath(); ctx.fill();
-
-    // gözler
-    ctx.fillStyle = "#FFD34D";
-    ctx.beginPath(); ctx.arc(-10, -d.h / 2 + 2, 4.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(10, -d.h / 2 + 2, 4.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#2B2B33";
-    ctx.beginPath(); ctx.arc(-10, -d.h / 2 + 2, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(10, -d.h / 2 + 2, 2, 0, Math.PI * 2); ctx.fill();
-
-    // burun/ağız
-    ctx.fillStyle = "#7A1F1F";
-    ctx.beginPath();
-    ctx.ellipse(0, -d.h / 2 + 20, 14, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.restore();
   }
