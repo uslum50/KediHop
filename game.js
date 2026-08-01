@@ -105,9 +105,9 @@
       }
 
       if (kind === "pole") {
-        const poleLow = 34 + rng() * 22;      // aşağıdayken zıplayıp geçilebilecek yükseklik
+        const poleLow = 0;                    // tamamen yere iner, üstünden yürünebilir
         const poleHigh = 205 + rng() * 55;    // yukarıdayken geçilemez
-        const speed = 1.6 + rng() * 1.1;      // iniş-çıkış hızı
+        const speed = 0.55 + rng() * 0.35;    // yavaş iniş-çıkış
         const phase = rng() * Math.PI * 2;
         obstacles.push({
           x, w: 26, kind, destroyed: false,
@@ -124,8 +124,16 @@
     let dragon = null;
     if (levelNum > DRAGON_START_LEVEL) {
       const dragonX = length - 260;
+      const h = 128;
       dragon = {
-        x: dragonX, y: groundY - 150, w: 118, h: 128,
+        x: dragonX, w: 118, h,
+        groundCy: groundY - h / 2 + 4,       // yerdeyken (alçaktayken) merkez y
+        highCy: groundY - h / 2 - 300,       // havada yükseldiğinde merkez y
+        cy: groundY - h / 2 + 4,
+        vSpeed: 0.5 + rng() * 0.14,          // yerden havaya çıkış hızı (yavaş)
+        vPhase: 0,
+        isHigh: false,
+        passed: false,
         triggerX: dragonX - 380,
         wallX: dragonX - 74,
         active: false, done: false, leaving: false,
@@ -391,6 +399,15 @@
     if (level.dragon) {
       const d = level.dragon;
 
+      // ejderha sürekli yerden havaya, havadan yere iniş çıkış yapar
+      d.vPhase += dt;
+      const cycle = 0.5 + 0.5 * Math.sin(d.vPhase * d.vSpeed);
+      d.cy = d.groundCy + (d.highCy - d.groundCy) * cycle;
+      const dragonBottom = d.cy + d.h / 2;
+      d.isHigh = dragonBottom < groundY - 150; // altından geçilebilecek kadar yüksekte mi
+
+      d.bobPhase += dt;
+
       if (!d.active && !d.done && player.x + player.w >= d.triggerX) {
         d.active = true;
         d.timer = DRAGON_FIGHT_DURATION;
@@ -400,27 +417,33 @@
       }
 
       if (d.active) {
-        d.bobPhase += dt;
         d.timer -= dt;
 
-        // ejderhayı geçmesini engelleyen görünmez duvar
-        if (player.x + player.w > d.wallX) {
-          player.x = d.wallX - player.w;
-          if (player.vx > 0) player.vx = 0;
+        // ejderha havadayken altından geçilebilir; alçaktayken yol kapalı
+        if (!d.passed) {
+          if (player.x + player.w > d.wallX) {
+            if (d.isHigh) {
+              d.passed = true; // kediciğin altından geçmeyi başardı
+            } else {
+              player.x = d.wallX - player.w;
+              if (player.vx > 0) player.vx = 0;
+            }
+          }
         }
 
-        // ateş topu fırlatma
+        // ateş topu fırlatma (hem yerden hem havadan)
         d.spawnTimer -= dt;
         if (d.spawnTimer <= 0) {
           spawnDragonFire(d);
           d.spawnTimer = 1.35 + Math.abs(Math.sin(d.timer * 3)) * 0.5;
         }
 
-        if (d.timer <= 0) {
+        if (d.passed || d.timer <= 0) {
           d.active = false;
           d.done = true;
+          d.passed = true;
           d.leaving = true;
-          d.leaveTimer = 1.3;
+          d.leaveTimer = 1.1;
           d.fireList = [];
         }
       }
@@ -428,7 +451,7 @@
       // uçup giden ejderha animasyonu
       if (d.leaving) {
         d.leaveTimer -= dt;
-        d.y -= dt * 140;
+        d.cy -= dt * 160;
         if (d.leaveTimer <= 0) d.leaving = false;
       }
 
@@ -498,7 +521,7 @@
     } else {
       d.fireList.push({
         kind: "air",
-        x: d.x, y: groundY - 195, w: 38, h: 32,
+        x: d.x, y: Math.min(groundY - 195, d.cy - 10), w: 38, h: 32,
         vx: -230, hit: false
       });
       d.nextKind = "ground";
@@ -707,42 +730,71 @@
 
   function drawDragon(d) {
     if (d.done && !d.leaving) return;
-    const bob = Math.abs(Math.sin(d.bobPhase * 2.2)) * 26;
     const cx = d.x + d.w / 2;
-    const cy = d.y - bob;
-    const alpha = d.leaving ? Math.max(0, d.leaveTimer / 1.3) : 1;
+    const cy = d.cy;
+    const alpha = d.leaving ? Math.max(0, d.leaveTimer / 1.1) : 1;
 
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(cx, cy);
 
-    // kanatlar
+    // kanatlar (koyu kırmızı)
     const wingFlap = Math.sin(d.bobPhase * 8) * 18;
-    ctx.fillStyle = "#3E6B4F";
+    ctx.fillStyle = "#7A1F1F";
     ctx.beginPath();
     ctx.moveTo(-20, -10);
-    ctx.lineTo(-70, -40 - wingFlap);
-    ctx.lineTo(-30, 10);
+    ctx.lineTo(-72, -42 - wingFlap);
+    ctx.lineTo(-30, 12);
     ctx.closePath(); ctx.fill();
     ctx.beginPath();
     ctx.moveTo(20, -10);
-    ctx.lineTo(70, -40 - wingFlap);
-    ctx.lineTo(30, 10);
+    ctx.lineTo(72, -42 - wingFlap);
+    ctx.lineTo(30, 12);
     ctx.closePath(); ctx.fill();
+    // kanat zarı çizgileri
+    ctx.strokeStyle = "#4E1414";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-20, -10); ctx.lineTo(-58, -30 - wingFlap); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(20, -10); ctx.lineTo(58, -30 - wingFlap); ctx.stroke();
 
-    // gövde
-    ctx.fillStyle = "#4C8A63";
+    // kuyruk
+    ctx.strokeStyle = "#B22B2B";
+    ctx.lineWidth = 14;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, d.h / 2 - 14);
+    ctx.quadraticCurveTo(30, d.h / 2 + 10, 46, d.h / 2 - 6);
+    ctx.stroke();
+
+    // gövde (kırmızı)
+    ctx.fillStyle = "#C23B3B";
     roundRect(-d.w / 2 + 20, -d.h / 2 + 20, d.w - 40, d.h - 40, 24);
     ctx.fill();
 
+    // karın (açık turuncu)
+    ctx.fillStyle = "#F2A65A";
+    ctx.beginPath();
+    ctx.ellipse(0, d.h / 2 - 34, d.w / 2 - 34, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // sırt dikenleri
+    ctx.fillStyle = "#7A1F1F";
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 16 - 6, -d.h / 2 + 22);
+      ctx.lineTo(i * 16, -d.h / 2 + 4);
+      ctx.lineTo(i * 16 + 6, -d.h / 2 + 22);
+      ctx.closePath(); ctx.fill();
+    }
+
     // kafa
-    ctx.fillStyle = "#5AA173";
+    ctx.fillStyle = "#D14A3D";
     ctx.beginPath();
     ctx.ellipse(0, -d.h / 2 + 6, 30, 24, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // boynuzlar
-    ctx.fillStyle = "#E8D9A0";
+    ctx.fillStyle = "#3B2A20";
     ctx.beginPath();
     ctx.moveTo(-14, -d.h / 2 - 10); ctx.lineTo(-8, -d.h / 2 + 12); ctx.lineTo(-20, -d.h / 2 + 6);
     ctx.closePath(); ctx.fill();
@@ -759,7 +811,7 @@
     ctx.beginPath(); ctx.arc(10, -d.h / 2 + 2, 2, 0, Math.PI * 2); ctx.fill();
 
     // burun/ağız
-    ctx.fillStyle = "#3E6B4F";
+    ctx.fillStyle = "#7A1F1F";
     ctx.beginPath();
     ctx.ellipse(0, -d.h / 2 + 20, 14, 8, 0, 0, Math.PI * 2);
     ctx.fill();
