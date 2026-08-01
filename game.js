@@ -107,7 +107,7 @@
       if (kind === "pole") {
         const poleLow = 0;                    // tamamen yere iner, üstünden yürünebilir
         const poleHigh = 205 + rng() * 55;    // yukarıdayken geçilemez
-        const speed = 0.55 + rng() * 0.35;    // yavaş iniş-çıkış
+        const speed = 0.7 + rng() * 0.35;    // yavaş iniş-çıkış
         const phase = rng() * Math.PI * 2;
         obstacles.push({
           x, w: 26, kind, destroyed: false,
