@@ -9,8 +9,8 @@
 
   // ---------- Sabitler ----------
   const TOTAL_LEVELS = 40;
-  const POLE_START_LEVEL = 20; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
-  const DRAGON_START_LEVEL = 20; // bu bölümden sonra bitiş öncesi ejderha çıkar
+  const POLE_START_LEVEL = 10; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
+  const DRAGON_START_LEVEL = 15; // bu bölümden sonra bitiş öncesi ejderha çıkar
   const DRAGON_FIGHT_DURATION = 15; // saniye
   const DRAGON_GROUND_DUR = 1.8;    // yerde durma süresi
   const DRAGON_RISE_DUR = 0.32;     // zıplayarak yükselme süresi
