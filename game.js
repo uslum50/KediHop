@@ -9,9 +9,15 @@
 
   // ---------- Sabitler ----------
   const TOTAL_LEVELS = 40;
-  const POLE_START_LEVEL = 10; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
-  const DRAGON_START_LEVEL = 10; // bu bölümden sonra bitiş öncesi ejderha çıkar
+  const POLE_START_LEVEL = 20; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
+  const DRAGON_START_LEVEL = 20; // bu bölümden sonra bitiş öncesi ejderha çıkar
   const DRAGON_FIGHT_DURATION = 15; // saniye
+  const DRAGON_GROUND_DUR = 1.8;    // yerde durma süresi
+  const DRAGON_RISE_DUR = 0.32;     // zıplayarak yükselme süresi
+  const DRAGON_APEX_DUR = 0.3;      // havada kalma süresi
+  const DRAGON_FALL_DUR = 0.32;     // inme süresi
+  const DRAGON_FIRE_DELAY = 0.7;    // yerdeyken ateş atmadan önceki bekleme
+  const DRAGON_HOP_HEIGHT = 132;    // zıplayınca çıktığı yükseklik (kediciğin zıplama yüksekliğiyle aynı)
   const GRAVITY = 1700;          // px/s^2
   const JUMP_VELOCITY = -680;    // px/s
   const MOVE_SPEED = 250;        // px/s (ileri butonuna basılıyken)
@@ -107,7 +113,7 @@
       if (kind === "pole") {
         const poleLow = 0;                    // tamamen yere iner, üstünden yürünebilir
         const poleHigh = 205 + rng() * 55;    // yukarıdayken geçilemez
-        const speed = 0.7 + rng() * 0.35;    // yavaş iniş-çıkış
+        const speed = 0.70 + rng() * 0.35;    // yavaş iniş-çıkış
         const phase = rng() * Math.PI * 2;
         obstacles.push({
           x, w: 26, kind, destroyed: false,
@@ -125,24 +131,23 @@
     if (levelNum > DRAGON_START_LEVEL) {
       const dragonX = length - 260;
       const h = 128;
+      const groundCy = groundY - h / 2 + 4; // yerdeyken (normal duruş) merkez y
       dragon = {
         x: dragonX, w: 118, h,
-        groundCy: groundY - h / 2 + 4,       // yerdeyken (alçaktayken) merkez y
-        highCy: groundY - h / 2 - 300,       // havada yükseldiğinde merkez y
-        cy: groundY - h / 2 + 4,
-        vSpeed: 0.5 + rng() * 0.14,          // yerden havaya çıkış hızı (yavaş)
-        vPhase: 0,
-        isHigh: false,
-        passed: false,
+        groundCy,
+        hopCy: groundCy - DRAGON_HOP_HEIGHT, // zıplayınca çıktığı merkez y
+        cy: groundCy,
+        state: "ground",       // ground -> rising -> apex -> falling -> ground ...
+        stateTimer: DRAGON_GROUND_DUR,
+        phaseElapsed: 0,
+        firedThisPhase: false,
         triggerX: dragonX - 380,
         wallX: dragonX - 74,
         active: false, done: false, leaving: false,
         timer: DRAGON_FIGHT_DURATION,
         leaveTimer: 0,
         bobPhase: 0,
-        spawnTimer: 1.1,
-        fireList: [],
-        nextKind: "ground"
+        fireList: []
       };
     }
 
@@ -399,49 +404,30 @@
     if (level.dragon) {
       const d = level.dragon;
 
-      // ejderha sürekli yerden havaya, havadan yere iniş çıkış yapar
-      d.vPhase += dt;
-      const cycle = 0.5 + 0.5 * Math.sin(d.vPhase * d.vSpeed);
-      d.cy = d.groundCy + (d.highCy - d.groundCy) * cycle;
-      const dragonBottom = d.cy + d.h / 2;
-      d.isHigh = dragonBottom < groundY - 150; // altından geçilebilecek kadar yüksekte mi
-
-      d.bobPhase += dt;
+      if (!d.leaving) updateDragonMotion(d, dt);
 
       if (!d.active && !d.done && player.x + player.w >= d.triggerX) {
         d.active = true;
         d.timer = DRAGON_FIGHT_DURATION;
-        d.spawnTimer = 1.0;
         d.fireList = [];
-        d.nextKind = "ground";
+        d.state = "ground";
+        d.stateTimer = DRAGON_GROUND_DUR;
+        d.phaseElapsed = 0;
+        d.firedThisPhase = false;
       }
 
       if (d.active) {
         d.timer -= dt;
 
-        // ejderha havadayken altından geçilebilir; alçaktayken yol kapalı
-        if (!d.passed) {
-          if (player.x + player.w > d.wallX) {
-            if (d.isHigh) {
-              d.passed = true; // kediciğin altından geçmeyi başardı
-            } else {
-              player.x = d.wallX - player.w;
-              if (player.vx > 0) player.vx = 0;
-            }
-          }
+        // ejderha savaşı bitene kadar yol kapalı
+        if (player.x + player.w > d.wallX) {
+          player.x = d.wallX - player.w;
+          if (player.vx > 0) player.vx = 0;
         }
 
-        // ateş topu fırlatma (hem yerden hem havadan)
-        d.spawnTimer -= dt;
-        if (d.spawnTimer <= 0) {
-          spawnDragonFire(d);
-          d.spawnTimer = 1.35 + Math.abs(Math.sin(d.timer * 3)) * 0.5;
-        }
-
-        if (d.passed || d.timer <= 0) {
+        if (d.timer <= 0) {
           d.active = false;
           d.done = true;
-          d.passed = true;
           d.leaving = true;
           d.leaveTimer = 1.1;
           d.fireList = [];
@@ -451,7 +437,7 @@
       // uçup giden ejderha animasyonu
       if (d.leaving) {
         d.leaveTimer -= dt;
-        d.cy -= dt * 160;
+        d.cy -= dt * 200;
         if (d.leaveTimer <= 0) d.leaving = false;
       }
 
@@ -510,22 +496,69 @@
   // Ejderha sırayla iki tür ateş topu atar:
   // "ground"  -> yerde ilerler, kedicik ZIPLAYARAK üstünden geçmeli.
   // "air"     -> baş hizasının üstünde uçar, kedicik YERİNDE DURARAK (zıplamadan) kurtulmalı.
-  function spawnDragonFire(d) {
-    if (d.nextKind === "ground") {
-      d.fireList.push({
-        kind: "ground",
-        x: d.x, y: groundY - 46, w: 34, h: 46,
-        vx: -270, hit: false
-      });
-      d.nextKind = "air";
-    } else {
-      d.fireList.push({
-        kind: "air",
-        x: d.x, y: Math.min(groundY - 195, d.cy - 10), w: 38, h: 32,
-        vx: -230, hit: false
-      });
-      d.nextKind = "ground";
+  // Ejderha yerde/havada döngüsel olarak hareket eder:
+  // ground  -> bir süre yerde durur, bu sırada YERDEN ateş atar (kedicik ZIPLAYARAK kaçmalı)
+  // rising  -> zıplayarak yükselir
+  // apex    -> tepe noktasında (kediciğin kendi zıplama yüksekliğiyle aynı) HAVADAN ateş atar
+  //            (kedicik YERİNDE DURARAK / zıplamayarak kaçmalı)
+  // falling -> yere iner, döngü baştan başlar
+  function updateDragonMotion(d, dt) {
+    d.bobPhase += dt; // kanat çırpma animasyonu
+    d.phaseElapsed += dt;
+    d.stateTimer -= dt;
+
+    if (d.state === "ground") {
+      d.cy = d.groundCy;
+      if (d.active && !d.firedThisPhase && d.phaseElapsed >= DRAGON_FIRE_DELAY) {
+        spawnGroundFire(d);
+        d.firedThisPhase = true;
+      }
+      if (d.stateTimer <= 0) {
+        d.state = "rising"; d.stateTimer = DRAGON_RISE_DUR;
+        d.phaseElapsed = 0; d.firedThisPhase = false;
+      }
+    } else if (d.state === "rising") {
+      const t = Math.min(1, 1 - Math.max(0, d.stateTimer) / DRAGON_RISE_DUR);
+      d.cy = d.groundCy + (d.hopCy - d.groundCy) * t;
+      if (d.stateTimer <= 0) {
+        d.state = "apex"; d.stateTimer = DRAGON_APEX_DUR;
+        d.phaseElapsed = 0; d.firedThisPhase = false;
+      }
+    } else if (d.state === "apex") {
+      d.cy = d.hopCy;
+      if (d.active && !d.firedThisPhase) {
+        spawnAirFire(d);
+        d.firedThisPhase = true;
+      }
+      if (d.stateTimer <= 0) {
+        d.state = "falling"; d.stateTimer = DRAGON_FALL_DUR;
+        d.phaseElapsed = 0; d.firedThisPhase = false;
+      }
+    } else if (d.state === "falling") {
+      const t = Math.min(1, 1 - Math.max(0, d.stateTimer) / DRAGON_FALL_DUR);
+      d.cy = d.hopCy + (d.groundCy - d.hopCy) * t;
+      if (d.stateTimer <= 0) {
+        d.state = "ground"; d.stateTimer = DRAGON_GROUND_DUR;
+        d.phaseElapsed = 0; d.firedThisPhase = false;
+      }
     }
+  }
+
+  // Yerde giden ateş: zeminde ilerler, kedicik ZIPLAYARAK üstünden geçmeli.
+  function spawnGroundFire(d) {
+    d.fireList.push({
+      kind: "ground", x: d.x, y: groundY - 46, w: 34, h: 46,
+      vx: -270, hit: false
+    });
+  }
+
+  // Havadan giden ateş: tam kediciğin zıplayınca ulaştığı yükseklikte gider,
+  // bu yüzden kedicik YERİNDE DURARAK (zıplamadan) kaçmalı.
+  function spawnAirFire(d) {
+    d.fireList.push({
+      kind: "air", x: d.x, y: groundY - 178, w: 38, h: 44,
+      vx: -230, hit: false
+    });
   }
 
   // ---------- Çizim ----------
