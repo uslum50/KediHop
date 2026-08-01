@@ -8,7 +8,10 @@
   "use strict";
 
   // ---------- Sabitler ----------
-  const TOTAL_LEVELS = 20;
+  const TOTAL_LEVELS = 40;
+  const POLE_START_LEVEL = 10; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
+  const DRAGON_START_LEVEL = 10; // bu bölümden sonra bitiş öncesi ejderha çıkar
+  const DRAGON_FIGHT_DURATION = 15; // saniye
   const GRAVITY = 1700;          // px/s^2
   const JUMP_VELOCITY = -680;    // px/s
   const MOVE_SPEED = 250;        // px/s (ileri butonuna basılıyken)
@@ -85,15 +88,54 @@
     const difficulty = 1 + levelNum * 0.075;
     let x = 700; // ilk engelden önce boşluk
 
+    // Ejderha bölümü varsa, normal engelleri onun alanına taşırmayalım.
+    const dragonZoneStart = levelNum > DRAGON_START_LEVEL ? length - 620 : Infinity;
+
     while (x < length - 500) {
       const gap = (260 + rng() * 260) / difficulty;
       x += gap;
       if (x > length - 500) break;
+      if (x > dragonZoneStart) break; // ejderha alanına normal engel koyma
 
-      const kind = rng() < 0.72 ? "spike" : "flame";
-      const w = kind === "spike" ? 36 + rng() * 18 : 22 + rng() * 12;
-      const h = kind === "spike" ? 46 + rng() * 20 : 26 + rng() * 14;
-      obstacles.push({ x, w, h, kind, destroyed: false });
+      let kind;
+      if (levelNum > POLE_START_LEVEL && rng() < 0.32) {
+        kind = "pole";
+      } else {
+        kind = rng() < 0.72 ? "spike" : "flame";
+      }
+
+      if (kind === "pole") {
+        const poleLow = 34 + rng() * 22;      // aşağıdayken zıplayıp geçilebilecek yükseklik
+        const poleHigh = 205 + rng() * 55;    // yukarıdayken geçilemez
+        const speed = 1.6 + rng() * 1.1;      // iniş-çıkış hızı
+        const phase = rng() * Math.PI * 2;
+        obstacles.push({
+          x, w: 26, kind, destroyed: false,
+          poleLow, poleHigh, speed, phase
+        });
+      } else {
+        const w = kind === "spike" ? 36 + rng() * 18 : 22 + rng() * 12;
+        const h = kind === "spike" ? 46 + rng() * 20 : 26 + rng() * 14;
+        obstacles.push({ x, w, h, kind, destroyed: false });
+      }
+    }
+
+    // ---- Ejderha (bitiş çizgisinden önceki mini patron karşılaşması) ----
+    let dragon = null;
+    if (levelNum > DRAGON_START_LEVEL) {
+      const dragonX = length - 260;
+      dragon = {
+        x: dragonX, y: groundY - 150, w: 118, h: 128,
+        triggerX: dragonX - 380,
+        wallX: dragonX - 74,
+        active: false, done: false, leaving: false,
+        timer: DRAGON_FIGHT_DURATION,
+        leaveTimer: 0,
+        bobPhase: 0,
+        spawnTimer: 1.1,
+        fireList: [],
+        nextKind: "ground"
+      };
     }
 
     // Soru işaretli kutu — her bölümde sadece 1 tane, yani süper güç bölüm başına 1 kez alınabilir.
@@ -105,7 +147,7 @@
       fireX: boxX + 23, fireY: groundY - 190, fireVy: 0
     });
 
-    return { num: levelNum, length, obstacles, boxes, finishX: length - 120 };
+    return { num: levelNum, length, obstacles, boxes, finishX: length - 120, dragon };
   }
 
   function startLevel(levelNum) {
@@ -215,9 +257,21 @@
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
   }
 
+  // İnip çıkan çubuğun o anki yüksekliğini hesaplar (0.5+0.5*sin ile 0..1 arası döngü).
+  function poleHeight(obs, t) {
+    const cycle = 0.5 + 0.5 * Math.sin(t * obs.speed + obs.phase);
+    return obs.poleLow + (obs.poleHigh - obs.poleLow) * cycle;
+  }
+
   // Diken/alev görselleri sivri üçgen şeklinde olduğu için tam kare kutu yerine
   // görsele daha yakın, içeri çekilmiş bir çarpışma alanı kullanıyoruz.
   function obstacleHitbox(obs) {
+    if (obs.kind === "pole") {
+      const h = poleHeight(obs, elapsedInLevel);
+      const oy = groundY - h;
+      const insetX = obs.w * 0.2;
+      return { x: obs.x + insetX, y: oy, w: obs.w - insetX * 2, h };
+    }
     const oy = groundY - obs.h;
     const insetX = obs.w * (obs.kind === "spike" ? 0.26 : 0.22);
     const insetTop = obs.h * (obs.kind === "spike" ? 0.32 : 0.2);
@@ -333,6 +387,69 @@
       }
     }
 
+    // --- Ejderha karşılaşması ---
+    if (level.dragon) {
+      const d = level.dragon;
+
+      if (!d.active && !d.done && player.x + player.w >= d.triggerX) {
+        d.active = true;
+        d.timer = DRAGON_FIGHT_DURATION;
+        d.spawnTimer = 1.0;
+        d.fireList = [];
+        d.nextKind = "ground";
+      }
+
+      if (d.active) {
+        d.bobPhase += dt;
+        d.timer -= dt;
+
+        // ejderhayı geçmesini engelleyen görünmez duvar
+        if (player.x + player.w > d.wallX) {
+          player.x = d.wallX - player.w;
+          if (player.vx > 0) player.vx = 0;
+        }
+
+        // ateş topu fırlatma
+        d.spawnTimer -= dt;
+        if (d.spawnTimer <= 0) {
+          spawnDragonFire(d);
+          d.spawnTimer = 1.35 + Math.abs(Math.sin(d.timer * 3)) * 0.5;
+        }
+
+        if (d.timer <= 0) {
+          d.active = false;
+          d.done = true;
+          d.leaving = true;
+          d.leaveTimer = 1.3;
+          d.fireList = [];
+        }
+      }
+
+      // uçup giden ejderha animasyonu
+      if (d.leaving) {
+        d.leaveTimer -= dt;
+        d.y -= dt * 140;
+        if (d.leaveTimer <= 0) d.leaving = false;
+      }
+
+      // ateş toplarını güncelle ve çarpışma kontrolü yap
+      for (const f of d.fireList) {
+        f.x += f.vx * dt;
+      }
+      d.fireList = d.fireList.filter(f => !f.hit && f.x > camX - 200);
+
+      for (const f of d.fireList) {
+        if (rectsOverlap(hpx, hpy, hpw, hph, f.x - f.w / 2, f.y, f.w, f.h)) {
+          if (player.powered) {
+            f.hit = true;
+          } else {
+            triggerGameOver();
+            return;
+          }
+        }
+      }
+    }
+
     // --- Bitiş çizgisi ---
     if (player.x + player.w >= level.finishX) {
       triggerLevelComplete();
@@ -365,6 +482,27 @@
   function setPowerHUD(on) {
     const el = document.getElementById("hudPower");
     if (on) el.classList.remove("hidden"); else el.classList.add("hidden");
+  }
+
+  // Ejderha sırayla iki tür ateş topu atar:
+  // "ground"  -> yerde ilerler, kedicik ZIPLAYARAK üstünden geçmeli.
+  // "air"     -> baş hizasının üstünde uçar, kedicik YERİNDE DURARAK (zıplamadan) kurtulmalı.
+  function spawnDragonFire(d) {
+    if (d.nextKind === "ground") {
+      d.fireList.push({
+        kind: "ground",
+        x: d.x, y: groundY - 46, w: 34, h: 46,
+        vx: -270, hit: false
+      });
+      d.nextKind = "air";
+    } else {
+      d.fireList.push({
+        kind: "air",
+        x: d.x, y: groundY - 195, w: 38, h: 32,
+        vx: -230, hit: false
+      });
+      d.nextKind = "ground";
+    }
   }
 
   // ---------- Çizim ----------
@@ -430,7 +568,32 @@
       ctx.stroke();
     } else if (obs.kind === "flame") {
       drawObstacleFlame(obs.x, obs.w, obs.h);
+    } else if (obs.kind === "pole") {
+      drawPole(obs);
     }
+  }
+
+  function drawPole(obs) {
+    const h = poleHeight(obs, elapsedInLevel);
+    const oy = groundY - h;
+    const w = obs.w;
+    ctx.save();
+    // taban plakası
+    ctx.fillStyle = "#5B5B66";
+    ctx.fillRect(obs.x - 6, groundY - 8, w + 12, 8);
+    // çubuğun kendisi
+    const grad = ctx.createLinearGradient(obs.x, 0, obs.x + w, 0);
+    grad.addColorStop(0, "#C9CDD6");
+    grad.addColorStop(0.5, "#8C8C99");
+    grad.addColorStop(1, "#5B5B66");
+    ctx.fillStyle = grad;
+    ctx.fillRect(obs.x, oy, w, h);
+    // uç kısmı (tehlike şeridi)
+    ctx.fillStyle = "#FF4D4D";
+    ctx.fillRect(obs.x, oy, w, 10);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(obs.x, oy + 10, w, 6);
+    ctx.restore();
   }
 
   function drawObstacleFlame(obsX, obsW, obsH) {
@@ -526,6 +689,81 @@
         ctx.fillRect(x + c * (flagW / 5), top + r * (flagH / 4), flagW / 5, flagH / 4);
       }
     }
+    ctx.restore();
+  }
+
+  function drawDragonFire(f) {
+    ctx.save();
+    const grad = ctx.createRadialGradient(f.x, f.y + f.h / 2, 2, f.x, f.y + f.h / 2, f.w);
+    grad.addColorStop(0, "#FFE27A");
+    grad.addColorStop(0.5, "#FF8A3D");
+    grad.addColorStop(1, "#FF4D4D");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y + f.h / 2, f.w / 2, f.h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDragon(d) {
+    if (d.done && !d.leaving) return;
+    const bob = Math.abs(Math.sin(d.bobPhase * 2.2)) * 26;
+    const cx = d.x + d.w / 2;
+    const cy = d.y - bob;
+    const alpha = d.leaving ? Math.max(0, d.leaveTimer / 1.3) : 1;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+
+    // kanatlar
+    const wingFlap = Math.sin(d.bobPhase * 8) * 18;
+    ctx.fillStyle = "#3E6B4F";
+    ctx.beginPath();
+    ctx.moveTo(-20, -10);
+    ctx.lineTo(-70, -40 - wingFlap);
+    ctx.lineTo(-30, 10);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(20, -10);
+    ctx.lineTo(70, -40 - wingFlap);
+    ctx.lineTo(30, 10);
+    ctx.closePath(); ctx.fill();
+
+    // gövde
+    ctx.fillStyle = "#4C8A63";
+    roundRect(-d.w / 2 + 20, -d.h / 2 + 20, d.w - 40, d.h - 40, 24);
+    ctx.fill();
+
+    // kafa
+    ctx.fillStyle = "#5AA173";
+    ctx.beginPath();
+    ctx.ellipse(0, -d.h / 2 + 6, 30, 24, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // boynuzlar
+    ctx.fillStyle = "#E8D9A0";
+    ctx.beginPath();
+    ctx.moveTo(-14, -d.h / 2 - 10); ctx.lineTo(-8, -d.h / 2 + 12); ctx.lineTo(-20, -d.h / 2 + 6);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(14, -d.h / 2 - 10); ctx.lineTo(8, -d.h / 2 + 12); ctx.lineTo(20, -d.h / 2 + 6);
+    ctx.closePath(); ctx.fill();
+
+    // gözler
+    ctx.fillStyle = "#FFD34D";
+    ctx.beginPath(); ctx.arc(-10, -d.h / 2 + 2, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(10, -d.h / 2 + 2, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2B2B33";
+    ctx.beginPath(); ctx.arc(-10, -d.h / 2 + 2, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(10, -d.h / 2 + 2, 2, 0, Math.PI * 2); ctx.fill();
+
+    // burun/ağız
+    ctx.fillStyle = "#3E6B4F";
+    ctx.beginPath();
+    ctx.ellipse(0, -d.h / 2 + 20, 14, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 
@@ -646,8 +884,25 @@
       for (const box of level.boxes) drawBox(box);
       for (const obs of level.obstacles) drawObstacle(obs);
       drawFinish(level.finishX);
+      if (level.dragon) {
+        drawDragon(level.dragon);
+        for (const f of level.dragon.fireList) drawDragonFire(f);
+      }
       drawCat();
       ctx.restore();
+
+      if (level.dragon && level.dragon.active) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "bold 22px 'Baloo 2', sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#2B2B33";
+        ctx.lineWidth = 4;
+        const txt = "🐉 " + Math.max(0, Math.ceil(level.dragon.timer)) + " sn";
+        ctx.strokeText(txt, W / 2, 46);
+        ctx.fillText(txt, W / 2, 46);
+        ctx.restore();
+      }
     }
   }
 
