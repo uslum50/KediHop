@@ -312,7 +312,7 @@
   // ---------- Arka plan müziği ----------
   const bgMusic = new Audio("audiobg-music.mp3");
   bgMusic.loop = true;
-  bgMusic.volume = 0.35; // 0-1 arası, istersen ayarla
+  bgMusic.volume = 0.20; // 0-1 arası, istersen ayarla
   bgMusic.muted = !!save.musicMuted;
   btnMusic.textContent = bgMusic.muted ? "🔇" : "🔊";
 
@@ -364,11 +364,11 @@
     } catch (e) {}
   }
   function playJumpSound() {
-    playTone(420, 780, 0.16, "square", 0.16);
+    playTone(420, 780, 0.16, "square", 0.30);
   }
   function playHitSound() {
-    playTone(260, 50, 0.35, "sawtooth", 0.22);
-    setTimeout(() => playTone(160, 30, 0.25, "sawtooth", 0.16), 60);
+    playTone(260, 50, 0.35, "sawtooth", 0.30);
+    setTimeout(() => playTone(160, 30, 0.25, "sawtooth", 0.30), 60);
   }
 
   // ---------- Fizik / güncelleme ----------
