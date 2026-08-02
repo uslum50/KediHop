@@ -9,8 +9,8 @@
 
   // ---------- Sabitler ----------
   const TOTAL_LEVELS = 40;
-  const POLE_START_LEVEL = 10; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
-  const DRAGON_START_LEVEL = 15; // bu bölümden sonra bitiş öncesi ejderha çıkar
+  const POLE_START_LEVEL = 10; // bu bölümden itibaren "inip çıkan çubuk" engeli görünür
+  const DRAGON_START_LEVEL = 15; // bu bölümden itibaren bitiş öncesi ejderha çıkar
   const DRAGON_FIGHT_DURATION = 15; // saniye
   const DRAGON_GROUND_DUR = 1.8;    // yerde durma süresi
   const DRAGON_RISE_DUR = 0.32;     // zıplayarak yükselme süresi
@@ -169,7 +169,7 @@
     let x = 700; // ilk engelden önce boşluk
 
     // Ejderha bölümü varsa, normal engelleri onun alanına taşırmayalım.
-    const dragonZoneStart = levelNum > DRAGON_START_LEVEL ? length - 620 : Infinity;
+    const dragonZoneStart = levelNum >= DRAGON_START_LEVEL ? length - 620 : Infinity;
 
     while (x < length - 500) {
       const gap = (260 + rng() * 260) / difficulty;
@@ -178,7 +178,7 @@
       if (x > dragonZoneStart) break; // ejderha alanına normal engel koyma
 
       let kind;
-      if (levelNum > POLE_START_LEVEL && rng() < 0.32) {
+      if (levelNum >= POLE_START_LEVEL && rng() < 0.32) {
         kind = "pole";
       } else {
         kind = rng() < 0.72 ? "spike" : "flame";
@@ -187,7 +187,7 @@
       if (kind === "pole") {
         const poleLow = 0;                    // tamamen yere iner, üstünden yürünebilir
         const poleHigh = 205 + rng() * 55;    // yukarıdayken geçilemez
-        const speed = 0.55 + rng() * 0.35;    // yavaş iniş-çıkış
+        const speed = 0.70 + rng() * 0.35;    // yavaş iniş-çıkış
         const phase = rng() * Math.PI * 2;
         obstacles.push({
           x, w: 26, kind, destroyed: false,
@@ -202,7 +202,7 @@
 
     // ---- Ejderha (bitiş çizgisinden önceki mini patron karşılaşması) ----
     let dragon = null;
-    if (levelNum > DRAGON_START_LEVEL) {
+    if (levelNum >= DRAGON_START_LEVEL) {
       const dragonX = length - 260;
       const h = 128;
       const groundCy = groundY - h / 2 + 4; // yerdeyken (normal duruş) merkez y
@@ -266,6 +266,7 @@
     hideAllOverlays();
     document.getElementById("btnPause").classList.remove("hidden");
     updateProgressHUD();
+    if (!bgMusic.muted) bgMusic.play().catch(() => {});
   }
 
   function retryLevel() {
@@ -590,6 +591,7 @@
     screen = Screens.GAME_OVER;
     document.getElementById("gameOverOverlay").classList.remove("hidden");
     document.getElementById("btnPause").classList.add("hidden");
+    bgMusic.pause();
   }
 
   function triggerLevelComplete() {
@@ -600,6 +602,7 @@
     document.getElementById("btnPause").classList.add("hidden");
     save.unlockedLevel = Math.max(save.unlockedLevel, Math.min(TOTAL_LEVELS, level.num + 1));
     writeSave();
+    bgMusic.pause();
   }
 
   function setPowerHUD(on) {
@@ -1110,10 +1113,12 @@
     if (screen !== Screens.PLAYING) return;
     screen = Screens.PAUSED;
     document.getElementById("pauseOverlay").classList.remove("hidden");
+    bgMusic.pause();
   });
   document.getElementById("btnResume").addEventListener("click", () => {
     hideAllOverlays();
     screen = Screens.PLAYING;
+    if (!bgMusic.muted) bgMusic.play().catch(() => {});
   });
   document.getElementById("btnPauseMenu").addEventListener("click", showMenu);
 
