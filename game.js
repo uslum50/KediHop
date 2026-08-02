@@ -9,8 +9,8 @@
 
   // ---------- Sabitler ----------
   const TOTAL_LEVELS = 40;
-  const POLE_START_LEVEL = 20; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
-  const DRAGON_START_LEVEL = 20; // bu bölümden sonra bitiş öncesi ejderha çıkar
+  const POLE_START_LEVEL = 10; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
+  const DRAGON_START_LEVEL = 15; // bu bölümden sonra bitiş öncesi ejderha çıkar
   const DRAGON_FIGHT_DURATION = 15; // saniye
   const DRAGON_GROUND_DUR = 1.8;    // yerde durma süresi
   const DRAGON_RISE_DUR = 0.32;     // zıplayarak yükselme süresi
@@ -39,12 +39,43 @@
   dragonImg.onload = () => { dragonImgLoaded = true; };
   dragonImg.src = "icons/dragon.png"; // dosya yolunu kendi klasör yapına göre değiştir
 
-  // ---------- İlerleme yüzdesi HUD'u (duraklat butonunun yanında) ----------
+  // ---------- Üst-sağ HUD kümesi: müzik + yüzde + duraklat ----------
+  // btnPause'u kendi CSS konumundan alıp bu satıra taşıyoruz; böylece stil dosyasındaki
+  // konum bilgisi ne olursa olsun üçü de birbirine hizalı kalır.
+  const hudTopRight = document.createElement("div");
+  Object.assign(hudTopRight.style, {
+    position: "fixed",
+    top: "14px",
+    right: "14px",
+    zIndex: "6",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px"
+  });
+  document.body.appendChild(hudTopRight);
+
+  const btnMusic = document.createElement("button");
+  btnMusic.type = "button";
+  btnMusic.id = "btnMusicToggle";
+  btnMusic.setAttribute("aria-label", "Müziği Aç/Kapat");
+  btnMusic.textContent = "🔊";
+  Object.assign(btnMusic.style, {
+    width: "38px",
+    height: "38px",
+    borderRadius: "50%",
+    border: "none",
+    background: "rgba(0,0,0,0.35)",
+    color: "#fff",
+    fontSize: "17px",
+    lineHeight: "38px",
+    padding: "0",
+    cursor: "pointer"
+  });
+  hudTopRight.appendChild(btnMusic);
+
   const hudProgress = document.createElement("div");
   hudProgress.id = "hudProgress";
   Object.assign(hudProgress.style, {
-    position: "fixed",
-    zIndex: "5",
     color: "#fff",
     fontWeight: "bold",
     fontFamily: "'Baloo 2', sans-serif",
@@ -57,20 +88,21 @@
     pointerEvents: "none"
   });
   hudProgress.textContent = "%0";
-  document.body.appendChild(hudProgress);
+  hudTopRight.appendChild(hudProgress);
+
+  // btnPause zaten HTML'de var; burada taşıyıp kendi eski (fixed) konumunu iptal ediyoruz.
+  const btnPauseEl = document.getElementById("btnPause");
+  btnPauseEl.style.position = "static";
+  hudTopRight.appendChild(btnPauseEl);
 
   function updateProgressHUD() {
-    const btn = document.getElementById("btnPause");
-    if (!level || btn.classList.contains("hidden")) {
+    if (!level || btnPauseEl.classList.contains("hidden")) {
       hudProgress.style.display = "none";
       return;
     }
     const pct = Math.max(0, Math.min(100, Math.round((player.x / level.finishX) * 100)));
     hudProgress.textContent = "%" + pct;
-    const r = btn.getBoundingClientRect();
     hudProgress.style.display = "block";
-    hudProgress.style.top = r.top + (r.height - hudProgress.offsetHeight) / 2 + "px";
-    hudProgress.style.left = (r.left - hudProgress.offsetWidth - 8) + "px";
   }
 
   function resize() {
@@ -280,6 +312,8 @@
   const bgMusic = new Audio("audiobg-music.mp3");
   bgMusic.loop = true;
   bgMusic.volume = 0.35; // 0-1 arası, istersen ayarla
+  bgMusic.muted = !!save.musicMuted;
+  btnMusic.textContent = bgMusic.muted ? "🔇" : "🔊";
 
   let musicStarted = false;
   function startBgMusic() {
@@ -290,6 +324,15 @@
   // Tarayıcılar kullanıcı dokunmadan otomatik ses çalmaya izin vermez,
   // bu yüzden ilk dokunuşta/tıklamada müziği başlatıyoruz.
   document.addEventListener("pointerdown", startBgMusic, { once: true });
+
+  btnMusic.addEventListener("click", (e) => {
+    e.stopPropagation(); // ilk tıklamada startBgMusic ile çakışıp anlık açılıp kapanmasın
+    bgMusic.muted = !bgMusic.muted;
+    btnMusic.textContent = bgMusic.muted ? "🔇" : "🔊";
+    save.musicMuted = bgMusic.muted;
+    writeSave();
+    if (!bgMusic.muted) startBgMusic();
+  });
 
   // ---------- Ses efektleri (dış dosya yok, doğrudan üretilir) ----------
   let audioCtx = null;
