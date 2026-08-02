@@ -312,7 +312,7 @@
   // ---------- Arka plan müziği ----------
   const bgMusic = new Audio("audiobg-music.mp3");
   bgMusic.loop = true;
-  bgMusic.volume = 0.20; // 0-1 arası, istersen ayarla
+  bgMusic.volume = 0.35; // 0-1 arası, istersen ayarla
   bgMusic.muted = !!save.musicMuted;
   btnMusic.textContent = bgMusic.muted ? "🔇" : "🔊";
 
@@ -325,6 +325,16 @@
   // Tarayıcılar kullanıcı dokunmadan otomatik ses çalmaya izin vermez,
   // bu yüzden ilk dokunuşta/tıklamada müziği başlatıyoruz.
   document.addEventListener("pointerdown", startBgMusic, { once: true });
+
+  // Oyun arka plana alınınca (sekme değişimi, telefon ana ekrana dönme vb.) müziği durdur;
+  // geri dönüldüğünde oyun hâlâ oynanıyorsa ve susturulmadıysa devam ettir.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      bgMusic.pause();
+    } else if (!bgMusic.muted && screen === Screens.PLAYING) {
+      bgMusic.play().catch(() => {});
+    }
+  });
 
   btnMusic.addEventListener("click", (e) => {
     e.stopPropagation(); // ilk tıklamada startBgMusic ile çakışıp anlık açılıp kapanmasın
@@ -364,11 +374,11 @@
     } catch (e) {}
   }
   function playJumpSound() {
-    playTone(420, 780, 0.16, "square", 0.30);
+    playTone(420, 780, 0.16, "square", 0.16);
   }
   function playHitSound() {
-    playTone(260, 50, 0.35, "sawtooth", 0.30);
-    setTimeout(() => playTone(160, 30, 0.25, "sawtooth", 0.30), 60);
+    playTone(260, 50, 0.35, "sawtooth", 0.22);
+    setTimeout(() => playTone(160, 30, 0.25, "sawtooth", 0.16), 60);
   }
 
   // ---------- Fizik / güncelleme ----------
