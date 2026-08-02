@@ -9,8 +9,8 @@
 
   // ---------- Sabitler ----------
   const TOTAL_LEVELS = 40;
-  const POLE_START_LEVEL = 10; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
-  const DRAGON_START_LEVEL = 15; // bu bölümden sonra bitiş öncesi ejderha çıkar
+  const POLE_START_LEVEL = 20; // bu bölümden sonra "inip çıkan çubuk" engeli görünür
+  const DRAGON_START_LEVEL = 20; // bu bölümden sonra bitiş öncesi ejderha çıkar
   const DRAGON_FIGHT_DURATION = 15; // saniye
   const DRAGON_GROUND_DUR = 1.8;    // yerde durma süresi
   const DRAGON_RISE_DUR = 0.32;     // zıplayarak yükselme süresi
@@ -155,7 +155,7 @@
       if (kind === "pole") {
         const poleLow = 0;                    // tamamen yere iner, üstünden yürünebilir
         const poleHigh = 205 + rng() * 55;    // yukarıdayken geçilemez
-        const speed = 0.70 + rng() * 0.35;    // yavaş iniş-çıkış
+        const speed = 0.55 + rng() * 0.35;    // yavaş iniş-çıkış
         const phase = rng() * Math.PI * 2;
         obstacles.push({
           x, w: 26, kind, destroyed: false,
@@ -275,6 +275,21 @@
   bindHold(btnMove, () => { input.moveHeld = true; }, () => { input.moveHeld = false; });
   bindHold(btnBack, () => { input.backHeld = true; }, () => { input.backHeld = false; });
   bindHold(btnJump, () => { input.jumpPressed = true; getAudioCtx(); }, () => {});
+
+  // ---------- Arka plan müziği ----------
+  const bgMusic = new Audio("audiobg-music.mp3");
+  bgMusic.loop = true;
+  bgMusic.volume = 0.35; // 0-1 arası, istersen ayarla
+
+  let musicStarted = false;
+  function startBgMusic() {
+    if (musicStarted) return;
+    musicStarted = true;
+    bgMusic.play().catch(() => {}); // tarayıcı engellerse sessizce geç
+  }
+  // Tarayıcılar kullanıcı dokunmadan otomatik ses çalmaya izin vermez,
+  // bu yüzden ilk dokunuşta/tıklamada müziği başlatıyoruz.
+  document.addEventListener("pointerdown", startBgMusic, { once: true });
 
   // ---------- Ses efektleri (dış dosya yok, doğrudan üretilir) ----------
   let audioCtx = null;
@@ -521,9 +536,11 @@
 
   function triggerGameOver() {
     playHitSound();
-    // bölümün yarısından fazlası geçildiyse, tekrar denemede oradan başlanır
+    // bölümün yarısından fazlası geçildiyse, tekrar denemede kaldığı yerin
+    // %10 gerisinden başlanır (rahat bir hazırlık payı için)
     if (furthestX >= level.finishX * 0.5) {
-      checkpointX = furthestX;
+      const setback = level.finishX * 0.10;
+      checkpointX = Math.max(0, furthestX - setback);
     } else {
       checkpointX = null;
     }
